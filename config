@@ -1,0 +1,11 @@
+[Telegram]
+access_token = 6027663154:AAGqrRhBGQgFAXzobO9UxwdG7p-9oJtd4pw
+chat = @malaysia_f_news
+
+[export_params]
+delay_between_messages = 3
+pub_pause = 60
+
+[RSS]
+link1 = https://www.thesundaily.my/rss/home
+link2 = https://www.thestar.com.my/rss
