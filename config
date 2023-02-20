@@ -1,6 +1,6 @@
 [Telegram]
-access_token = X_REPLACE like RhBGQgFAXzobO9Uxwd
-chat = X_REPLACE like @my_super_chanel
+access_token = 6027663154:AAGqrRhBGQgFAXzobO9UxwdG7p-9oJtd4pw
+chat = @malaysia_f_news
 
 [export_params]
 delay_between_messages = 5
