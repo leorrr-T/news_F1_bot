@@ -1,6 +1,6 @@
 [Telegram]
-access_token = 6027663154:AAGqrRhBGQgFAXzobO9UxwdG7p-9oJtd4pw
-chat = @malaysia_f_news
+access_token = X
+chat = @super_chat
 
 [export_params]
 delay_between_messages = 5
@@ -9,16 +9,7 @@ pub_pause = 60
 [RSS]
 link1 = https://www.thestar.com.my/rss/Metro
 link2 = https://www.thesundaily.my/rss/home
-link3 = https://www.malaysia.gov.my/service/rss/feeder/802?language=1
-link4 = https://www.malaysia.gov.my/service/rss/feeder/658?language=1
-link5 = https://www.malaysiakini.com/rss/en/columns.rss
-link6 = https://www.malaysiakini.com/rss/en/news.rss
-link7 = https://www.hmetro.com.my/utama.xml
-link8 = https://www.hmetro.com.my/bisnes.xml
-link9 = https://www.hmetro.com.my/global.xml
-link10 = https://www.malaymail.com/feed/rss/malaysia
-link11 = https://www.bernama.com/en/rssfeed.php
-link12 = https://www.malaysia-today.net/feed/
-link13 = https://www.sarawakreport.org/feed/
-link14 = https://www.heraldmalaysia.com/home/rss
-link15 = https://www.buzzingmalaysia.com/blog-feed.xml
+
+
+[RSS2]
+link1 = https://defencesecurityasia.com/category/gajet/feed/

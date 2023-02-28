@@ -1,14 +1,30 @@
+import asyncio
 import feedparser
 import configparser
 import time
-import telebot
-import requests
-from bs4 import BeautifulSoup
-from aiogram import types
+import datetime
+from aiogram import Bot, Dispatcher, executor, types
 from aiogram.utils.markdown import hlink
+from aiogram.dispatcher.filters import Text
+
+config = configparser.ConfigParser()
+config.read('./config')
+bot_access_token = config['Telegram']['access_token']
+delay_between_messages = int(config['export_params']['delay_between_messages'])
+pub_pause = int(config['export_params']['pub_pause'])
+
+bot = Bot(token=bot_access_token, parse_mode=types.ParseMode.HTML)
+dp = Dispatcher(bot)
 
 e = []
 s_news = []
+news = []
+
+r = 1
+tc = '2012-12-21 12:21:12'
+tp = 'not yet'
+s = 'working'
+
 try:
     with open('s.txt', 'r', encoding='utf-8') as fr:
         for line in fr:
@@ -16,6 +32,8 @@ try:
             s_news.append(x)
 except IOError as e:
     s_news = []
+
+t = len(s_news)
 
 with open('w.txt', 'r', encoding='utf-8') as f:
     word = f.read().splitlines()
@@ -25,125 +43,126 @@ with open('ws.txt', 'r', encoding='utf-8') as f:
     f.close()
 
 
-class Source(object):
-    def __init__(self, config_links):
-        self.links = [config_links[i] for i in config_links]
-        self.news = []
-        global e
-        self.refresh()
-
-    def refresh(self):
-        self.news = []
-        for i in self.links:
-            try:
-                data = feedparser.parse(i)
-                for element in data['entries']:
-                    for w in element.title.replace('-', ' ').replace('’', ' ').replace('\'', ' ').replace(':', ' ').replace('–', ' ').replace(',', ' ').split():
-                        if w.lower() in word:
-                            self.news.append(element)
-                for element in data['entries']:
-                    for w in words:
-                        if w in element.title.lower():
-                            self.news.append(element)
-            except IOError as er:
-                e.append(er)
-
-        headers = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"}
-        url = "https://defencesecurityasia.com/"
+def refresh():
+    global news
+    news = []
+    config_links = config['RSS']
+    links = [config_links[i] for i in config_links]
+    for i in links:
         try:
-            r = requests.get(url=url, headers=headers)
-            soup = BeautifulSoup(r.text, "lxml")
-            articles_lists = soup.find_all("a", class_="limit-line")
-
-            for b in articles_lists:
-                article_title = b.text.strip()
-                article_link = b.get("href")
-
-                app = {
-                    "title": article_title,
-                    "link": article_link
-                }
-                self.news.append(app)
-
+            data = feedparser.parse(i)
+            for element in data['entries']:
+                for w in element.title.replace('-', ' ').replace('’', ' ').replace('\'', ' ').replace(':', ' ').replace(
+                        '–', ' ').replace(',', ' ').split():
+                    if w.lower() in word:
+                        news.append(element)
+            for element in data['entries']:
+                for w in words:
+                    if w in element.title.lower():
+                        news.append(element)
         except IOError as er:
             e.append(er)
 
-        # print(str(self.news))
-        # self.news = list(set(self.news))
-        print('news   - ' + str(len(self.news)))
+    print('news1  - ' + str(len(news)))
 
-    def __repr__(self):
-        return "<RSS ('%s','%s')>" % (self.links, len(self.news))
+    config_links2 = config['RSS2']
+    links2 = [config_links2[i] for i in config_links2]
+
+    for i in links2:
+        try:
+            data = feedparser.parse(i)
+            for element in data['entries']:
+                news.append(element)
+        except IOError as er:
+            e.append(er)
+
+    print('news2  - ' + str(len(news)))
 
 
-def main():
-    config = configparser.ConfigParser()
-    config.read('./config')
-    bot_access_token = config['Telegram']['access_token']
-    delay_between_messages = int(config['export_params']['delay_between_messages'])
-    pub_pause = int(config['export_params']['pub_pause'])
-    bot = telebot.TeleBot(bot_access_token)
-    global s_news
-    global e
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    start_buttons = ["Start chanel", "Is alive", "Stop chanel"]
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(*start_buttons)
+
+    await message.answer("Starting", reply_markup=keyboard)
+
+
+@dp.message_handler(Text(equals="Is alive"))
+async def is_alive(message: types.Message):
+    await message.answer('s_news - ' + str(len(s_news)) + ', ' + 'news - ' + str(len(news)))
+    await message.answer('last check - ' + tc + ',\nlast post - ' + tp + '\nStatus - ' + s)
+
+
+@dp.message_handler(Text(equals="Start chanel"))
+async def start_ch(message: types.Message):
+    global r
+    global s
+    r = 1
+    s = 'working'
+    await message.answer("Start NEWSing")
+    loop.create_task(get_f_news())
+
+
+@dp.message_handler(Text(equals="Stop chanel"))
+async def stop_ch(message: types.Message):
+    global r
+    global s
+    r = 0
+    s = 'NOT working'
+    await message.answer("STOP newsing")
+
+
+async def get_f_news():
     for_publishing = []
-    n = 0
-    t = 0
-    while True:
-        # print('s_news - ' + str(len(s_news)))
-        print('w_news - ' + str(t))
-        src = Source(config['RSS'])
-        news = src.news
+    global t
+    global tc
+    global tp
+
+    while r == 1:
+        tc = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
+        print('time - ' + tc)
+        refresh()
+
+        print('s_news_B - ' + str(len(s_news)))
+
         for element in news:
             if element['title'] not in s_news:
                 for_publishing.append(element)
                 s_news.append(element['title'])
 
-        if len(e) > 0:
-            for ee in e:
-                print('error - ' + str(ee))
-
-        print('to pub - ' + str(len(for_publishing)))
+        print('s_news_A - ' + str(len(s_news)))
 
         if len(for_publishing) > 0:
+            print('to Pub - ' + str(len(for_publishing)))
             for post in for_publishing:
-                # bot.send_message(config['Telegram']['chat'], f"<b>{hlink(post['title'], post['link'])}</b>", parse_mode=types.ParseMode.HTML)
-                print('title - ' + post['title'])
+                print(post['title'])
+                n = f"<b>{hlink(post['title'], post['link'])}</b>"
                 time.sleep(delay_between_messages)
 
-        print('s_news - ' + str(len(s_news)))
-
-        if len(s_news) > 120:
-            del s_news[1:70]
-
-        n = n + 1
-        print('n=' + str(n))
-
-        if n > 5:
-            n = 0
-            if t != len(s_news):
-                with open('s.txt', 'w', encoding='utf-8') as fw:
-                    for item in s_news:
-                        fw.write("%s\n" % item)
-                print('writing to file')
-                t = len(s_news)
-
-        e = []
-        print('--- ----- ---')
+                await bot.send_message(config['Telegram']['chat'], n)
+            tp = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S at %d.%m.%Y')
 
         for_publishing.clear()
 
-        time.sleep(pub_pause)
+        if len(s_news) > t:
+            with open('s.txt', 'w', encoding='utf-8') as fw:
+                for item in s_news:
+                    fw.write("%s\n" % item)
+            print('writing to file')
+            t = len(s_news)
 
+        print('t - ' + str(t))
+        print('--- ---- ---')
 
-def telegram_bot(token):
-    bot = telebot.TeleBot(token)
+        if len(s_news) > 199:
+            del s_news[1:100]
+            t = len(s_news)
 
-    @bot.message_handler(commands=["start"])
-    def start_message(message):
-        bot.send_message(message.chat.id, "NEW bot")
-
-    # @bot.message_handler(content_types=["text"])
+        await asyncio.sleep(pub_pause)
 
 
 if __name__ == '__main__':
-    main()
+    loop = asyncio.get_event_loop()
+    loop.create_task(get_f_news())
+    executor.start_polling(dp)
