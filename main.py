@@ -1,4 +1,5 @@
 import asyncio
+import requests
 import feedparser
 import configparser
 import time
@@ -10,8 +11,10 @@ from aiogram.dispatcher.filters import Text
 config = configparser.ConfigParser()
 config.read('./config')
 bot_access_token = config['Telegram']['access_token']
+net_timeout = int(config['export_params']['net_timeout'])
 delay_between_messages = int(config['export_params']['delay_between_messages'])
 pub_pause = int(config['export_params']['pub_pause'])
+headers = {'content-type': 'application/rss+xml', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'}
 
 bot = Bot(token=bot_access_token, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot)
@@ -21,8 +24,9 @@ s_news = []
 news = []
 
 r = 1
+te = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M %d.%m.%Y')
 tc = '2012-12-21 12:21:12'
-tp = 'not yet'
+tp = f'not yet since {te}'
 s = 'working'
 
 try:
@@ -50,7 +54,14 @@ def refresh():
     links = [config_links[i] for i in config_links]
     for i in links:
         try:
-            data = feedparser.parse(i)
+            # print(i)
+            try:
+                resp = requests.get(i, timeout=net_timeout, headers=headers)
+            except requests.ReadTimeout:
+                print('timeout - ' + i)
+                e.append(f'timeout - {tc} - {i}')
+                continue
+            data = feedparser.parse(resp.content)
             for element in data['entries']:
                 for w in element.title.replace('-', ' ').replace('’', ' ').replace('\'', ' ').replace(':', ' ').replace(
                         '–', ' ').replace(',', ' ').split():
@@ -60,28 +71,39 @@ def refresh():
                 for w in words:
                     if w in element.title.lower():
                         news.append(element)
-        except IOError as er:
-            e.append(er)
+        except Exception as er:
+            print(er)
+            e.append(f'Exception - {tc}')
+            continue
 
-    print('news1  - ' + str(len(news)))
+    print('news_1 - ' + str(len(news)))
 
     config_links2 = config['RSS2']
     links2 = [config_links2[i] for i in config_links2]
 
     for i in links2:
         try:
-            data = feedparser.parse(i)
+            # print(i)
+            try:
+                resp = requests.get(i, timeout=net_timeout, headers=headers)
+            except requests.ReadTimeout:
+                print('timeout - ' + i)
+                e.append(f'timeout - {tc} - {i}')
+                continue
+            data = feedparser.parse(resp.content)
             for element in data['entries']:
                 news.append(element)
-        except IOError as er:
-            e.append(er)
+        except Exception as er:
+            print(er)
+            e.append(f'Exception - {tc}')
+            continue
 
-    print('news2  - ' + str(len(news)))
+    print('news_2 - ' + str(len(news)))
 
 
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
-    start_buttons = ["Start chanel", "Is alive", "Stop chanel"]
+    start_buttons = ["Start channel", "Is alive", "Stop channel"]
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(*start_buttons)
 
@@ -91,10 +113,14 @@ async def start(message: types.Message):
 @dp.message_handler(Text(equals="Is alive"))
 async def is_alive(message: types.Message):
     await message.answer('s_news - ' + str(len(s_news)) + ', ' + 'news - ' + str(len(news)))
-    await message.answer('last check - ' + tc + ',\nlast post - ' + tp + '\nStatus - ' + s)
+    await message.answer('last check ' + tc + ',\nlast post    ' + tp + '\nStatus:       ' + s)
+    nn = f'errors since {te} - {str(len(e))}'
+    for post in e:
+        nn = nn + '\n' + str(post)
+    await message.answer(nn)
 
 
-@dp.message_handler(Text(equals="Start chanel"))
+@dp.message_handler(Text(equals="Start channel"))
 async def start_ch(message: types.Message):
     global r
     global s
@@ -104,7 +130,7 @@ async def start_ch(message: types.Message):
     loop.create_task(get_f_news())
 
 
-@dp.message_handler(Text(equals="Stop chanel"))
+@dp.message_handler(Text(equals="Stop channel"))
 async def stop_ch(message: types.Message):
     global r
     global s
@@ -118,20 +144,21 @@ async def get_f_news():
     global t
     global tc
     global tp
+    global te
 
     while r == 1:
-        tc = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
-        print('time - ' + tc)
+        tc = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M')
+        print('time   - ' + tc)
         refresh()
 
-        print('s_news_B - ' + str(len(s_news)))
+        print('s_news_A - ' + str(len(s_news)))
 
         for element in news:
             if element['title'] not in s_news:
                 for_publishing.append(element)
                 s_news.append(element['title'])
 
-        print('s_news_A - ' + str(len(s_news)))
+        print('s_news_B - ' + str(len(s_news)))
 
         if len(for_publishing) > 0:
             print('to Pub - ' + str(len(for_publishing)))
@@ -140,8 +167,8 @@ async def get_f_news():
                 n = f"<b>{hlink(post['title'], post['link'])}</b>"
                 time.sleep(delay_between_messages)
 
-                await bot.send_message(config['Telegram']['chat'], n)
-            tp = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S at %d.%m.%Y')
+                # await bot.send_message(config['Telegram']['chat'], n)
+            tp = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M  %d.%m.%Y')
 
         for_publishing.clear()
 
@@ -153,7 +180,12 @@ async def get_f_news():
             t = len(s_news)
 
         print('t - ' + str(t))
+        print('err since ' + te + ' - ' + str(len(e)))
         print('--- ---- ---')
+
+        if len(e) > 21:
+            e.clear()
+            te = datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M %d.%m.%Y')
 
         if len(s_news) > 199:
             del s_news[1:100]
